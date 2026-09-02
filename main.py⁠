@@ -1,0 +1,33 @@
+from fastapi import FastAPI, UploadFile, File
+import whisper
+from deep_translator import GoogleTranslator
+import shutil, os
+
+app = FastAPI()
+model = whisper.load_model("tiny")
+
+@app.get("/")
+def home():
+    return {"message": "Server is running"}
+
+@app.post("/translate")
+async def translate_video(file: UploadFile = File(...)):
+    temp_file = f"temp_{file.filename}"
+    with open(temp_file, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    result = model.transcribe(temp_file)
+    translator = GoogleTranslator(source='en', target='ckb')
+    
+    srt_text = ""
+    for i, seg in enumerate(result['segments'], start=1):
+        try:
+            kurdish = translator.translate(seg['text'].strip())
+        except:
+            kurdish = seg['text']
+            
+        srt_text += f"{i}\n{seg['start']} --> {seg['end']}\n{kurdish}\n\n"
+        
+    os.remove(temp_file)
+    return {"srt": srt_text}
+
